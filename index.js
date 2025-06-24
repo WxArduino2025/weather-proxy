@@ -1,36 +1,43 @@
 const express = require('express');
-const { createProxyMiddleware } = require('http-proxy-middleware');
+const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// METAR endpoint
-app.use('/proxy/stations/:stationCode', (req, res, next) => {
+// Handle METAR station request
+app.get('/proxy/stations/:stationCode', async (req, res) => {
   const stationCode = req.params.stationCode.toUpperCase();
-  const targetUrl = `https://api.weather.gov/stations/${stationCode}/observations/latest`;
+  const url = `https://api.weather.gov/stations/${stationCode}/observations/latest`;
 
-  createProxyMiddleware({
-    target: targetUrl,
-    changeOrigin: true,
-    pathRewrite: (path, req) => '', // no rewrite needed, direct fetch
-    onProxyReq: (proxyReq) => {
-      proxyReq.setHeader('User-Agent', 'Arduino-GIGA-Weather/1.0');
-      proxyReq.setHeader('Accept', 'application/geo+json,application/json');
-    },
-  })(req, res, next);
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Arduino-GIGA-Weather/1.0',
+        'Accept': 'application/geo+json,application/json'
+      }
+    });
+    res.json(response.data);
+  } catch (err) {
+    console.error(`Error fetching METAR for ${stationCode}:`, err.message);
+    res.status(500).json({ error: `Failed to fetch METAR for ${stationCode}` });
+  }
 });
 
-// Warning alerts
-app.use('/proxy/alerts', createProxyMiddleware({
-  target: 'https://api.weather.gov/',
-  changeOrigin: true,
-  pathRewrite: {
-    '^/proxy/alerts': '/alerts'
-  },
-  onProxyReq: (proxyReq) => {
-    proxyReq.setHeader('User-Agent', 'Arduino-GIGA-Weather/1.0');
-    proxyReq.setHeader('Accept', 'application/geo+json,application/json');
-  },
-}));
+// Forward alert requests
+app.use('/proxy/alerts', async (req, res) => {
+  const targetUrl = `https://api.weather.gov/alerts${req.url}`;
+  try {
+    const response = await axios.get(targetUrl, {
+      headers: {
+        'User-Agent': 'Arduino-GIGA-Weather/1.0',
+        'Accept': 'application/geo+json,application/json'
+      }
+    });
+    res.json(response.data);
+  } catch (err) {
+    console.error("Error fetching alert:", err.message);
+    res.status(500).json({ error: "Failed to fetch alert" });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`✅ Proxy server running at http://localhost:${PORT}`);
