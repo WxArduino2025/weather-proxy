@@ -1,36 +1,37 @@
-const express = require("express");
-const fetch = require("node-fetch");
+const express = require('express');
+const { createProxyMiddleware } = require('http-proxy-middleware');
 const app = express();
+const PORT = process.env.PORT || 8080;
 
-const API_BASE = "https://api.weather.gov";
+// METAR endpoint
+app.use('/proxy/stations/:stationCode', (req, res, next) => {
+  const stationCode = req.params.stationCode.toUpperCase();
+  const targetUrl = `https://api.weather.gov/stations/${stationCode}/observations/latest`;
 
-// ✅ Optional root route so "/" returns a useful message
-app.get("/", (req, res) => {
-  res.send("✅ Weather Proxy is running. Use /proxy/[path] to fetch from api.weather.gov.");
+  createProxyMiddleware({
+    target: targetUrl,
+    changeOrigin: true,
+    pathRewrite: (path, req) => '', // no rewrite needed, direct fetch
+    onProxyReq: (proxyReq) => {
+      proxyReq.setHeader('User-Agent', 'Arduino-GIGA-Weather/1.0');
+      proxyReq.setHeader('Accept', 'application/geo+json,application/json');
+    },
+  })(req, res, next);
 });
 
-// Proxy route to forward all /proxy/* requests to api.weather.gov
-app.get("/proxy/*", async (req, res) => {
-  try {
-    const targetPath = req.params[0]; // gets the part after /proxy/
-    const query = req.originalUrl.split("/proxy/")[1];
+// Warning alerts
+app.use('/proxy/alerts', createProxyMiddleware({
+  target: 'https://api.weather.gov/',
+  changeOrigin: true,
+  pathRewrite: {
+    '^/proxy/alerts': '/alerts'
+  },
+  onProxyReq: (proxyReq) => {
+    proxyReq.setHeader('User-Agent', 'Arduino-GIGA-Weather/1.0');
+    proxyReq.setHeader('Accept', 'application/geo+json,application/json');
+  },
+}));
 
-    const response = await fetch(`${API_BASE}/${query}`, {
-      headers: {
-        "User-Agent": "ArduinoGIGA-WeatherProxy"
-      }
-    });
-
-    const data = await response.text();
-    res.set("Content-Type", "application/json");
-    res.send(data);
-  } catch (error) {
-    res.status(500).json({ error: "Proxy fetch failed", detail: error.toString() });
-  }
-});
-
-// Start server
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`✅ Proxy server running on port ${PORT}`);
+  console.log(`✅ Proxy server running at http://localhost:${PORT}`);
 });
