@@ -48,6 +48,8 @@ app.get('/proxy/stations/:stationCode', async (req, res) => {
 // Forward alert requests
 app.get('/proxy/alerts*', async (req, res) => {
   const targetUrl = `https://api.weather.gov/alerts${req.url.replace('/proxy/alerts', '')}`;
+  console.log(`Request URL: ${req.url}`);
+  console.log(`Query params: ${JSON.stringify(req.query, null, 2)}`);
   console.log(`Fetching alerts from: ${targetUrl}`);
   const cacheKey = `alerts_${req.url}`;
   const cachedData = cache.get(cacheKey);
@@ -62,7 +64,11 @@ app.get('/proxy/alerts*', async (req, res) => {
       headers: { 'User-Agent': 'Arduino-GIGA-Weather/1.0', 'Accept': 'application/geo+json,application/json' }
     });
     console.log(`NWS response status: ${response.status}, headers:`, JSON.stringify(response.headers, null, 2));
-    console.log('Raw NWS response features:', JSON.stringify(response.data.features, null, 2));
+    console.log('Raw NWS response:', JSON.stringify({
+      features: response.data.features,
+      title: response.data.title,
+      updated: response.data.updated
+    }, null, 2));
     const simplifiedData = {
       features: response.data.features.map(feature => ({
         id: feature.properties.id,
