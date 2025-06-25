@@ -67,7 +67,9 @@ app.get('/proxy/alerts*', async (req, res) => {
     console.log('Raw NWS response:', JSON.stringify({
       features: response.data.features,
       title: response.data.title,
-      updated: response.data.updated
+      updated: response.data.updated,
+      messageType: response.data.features.map(f => f.properties.messageType || 'unknown'),
+      status: response.data.features.map(f => f.properties.status || 'unknown')
     }, null, 2));
     const simplifiedData = {
       features: response.data.features.map(feature => ({
@@ -75,7 +77,9 @@ app.get('/proxy/alerts*', async (req, res) => {
         event: feature.properties.event,
         sent: feature.properties.sent,
         expires: feature.properties.expires,
-        geocode: feature.properties.geocode
+        geocode: feature.properties.geocode,
+        messageType: feature.properties.messageType,
+        status: feature.properties.status
       }))
     };
     console.log('Simplified response:', JSON.stringify(simplifiedData, null, 2));
