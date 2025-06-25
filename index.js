@@ -5,13 +5,16 @@ const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
-const cache = new NodeCache({ stdTTL: 120, checkperiod: 30 });
+const cache = new NodeCache({ stdTTL: 120, checkperiod: 30 }); // Cache for 2 minutes
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-app.get('/', (req, res) => res.send('Weather Proxy Server Running')); // Added root route
+// Root route for health check
+app.get('/', (req, res) => res.send('Weather Proxy Server Running'));
 
+// Handle METAR station request
 app.get('/proxy/stations/:stationCode', async (req, res) => {
   const stationCode = req.params.stationCode.toUpperCase();
   const cacheKey = `metar_${stationCode}`;
@@ -40,8 +43,10 @@ app.get('/proxy/stations/:stationCode', async (req, res) => {
   }
 });
 
+// Forward alert requests
 app.get('/proxy/alerts*', async (req, res) => {
   const targetUrl = `https://api.weather.gov/alerts${req.url.replace('/proxy/alerts', '')}`;
+  console.log(`Fetching alerts from: ${targetUrl}`); // Log URL for debugging
   const cacheKey = `alerts_${req.url}`;
   const cachedData = cache.get(cacheKey);
 
@@ -54,6 +59,7 @@ app.get('/proxy/alerts*', async (req, res) => {
     const response = await axios.get(targetUrl, {
       headers: { 'User-Agent': 'Arduino-GIGA-Weather/1.0', 'Accept': 'application/geo+json,application/json' }
     });
+    console.log('Raw NWS response features:', JSON.stringify(response.data.features, null, 2)); // Log raw response
     const simplifiedData = {
       features: response.data.features.map(feature => ({
         id: feature.properties.id,
