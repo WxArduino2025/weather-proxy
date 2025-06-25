@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 8080;
 const cache = new NodeCache({ stdTTL: 120, checkperiod: 30 }); // Cache for 2 minutes
 
 // Middleware
-app.use(cors()); // Enable CORS for all routes
+app.use(cors());
 app.use(express.json());
 
 // Handle METAR station request
@@ -32,9 +32,8 @@ app.get('/proxy/stations/:stationCode', async (req, res) => {
       }
     });
 
-    // Ensure response is an array (Arduino expects a JSON array)
     const data = Array.isArray(response.data) ? response.data : [response.data];
-    cache.set(cacheKey, data); // Store in cache
+    cache.set(cacheKey, data);
     res.json(data);
   } catch (err) {
     console.error(`Error fetching METAR for ${stationCode}:`, err.message);
@@ -64,10 +63,9 @@ app.get('/proxy/alerts*', async (req, res) => {
       }
     });
 
-    // Simplify response to reduce payload size
     const simplifiedData = {
       features: response.data.features.map(feature => ({
-        id feature.properties.id,
+        id: feature.properties.id, // Fixed syntax
         event: feature.properties.event,
         sent: feature.properties.sent,
         expires: feature.properties.expires,
@@ -75,7 +73,7 @@ app.get('/proxy/alerts*', async (req, res) => {
       }))
     };
 
-    cache.set(cacheKey, simplifiedData); // Store in cache
+    cache.set(cacheKey, simplifiedData);
     res.json(simplifiedData);
   } catch (err) {
     console.error(`Error fetching alerts for ${req.url}:`, err.message);
