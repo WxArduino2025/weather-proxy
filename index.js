@@ -28,10 +28,12 @@ app.get('/proxy/stations/:stationCode', async (req, res) => {
   const url = `https://aviationweather.gov/api/data/metar?format=json&hoursBeforeNow=3&mostRecentForEachStation=true&ids=${stationCode}`;
 
   try {
+    console.log(`Fetching METAR from: ${url}`);
     const response = await axios.get(url, {
       headers: { 'User-Agent': 'Arduino-GIGA-Weather/1.0', 'Accept': 'application/json' }
     });
     const data = Array.isArray(response.data) ? response.data : [response.data];
+    console.log(`METAR response for ${stationCode}:`, JSON.stringify(data, null, 2));
     cache.set(cacheKey, data);
     res.json(data);
   } catch (err) {
@@ -46,7 +48,7 @@ app.get('/proxy/stations/:stationCode', async (req, res) => {
 // Forward alert requests
 app.get('/proxy/alerts*', async (req, res) => {
   const targetUrl = `https://api.weather.gov/alerts${req.url.replace('/proxy/alerts', '')}`;
-  console.log(`Fetching alerts from: ${targetUrl}`); // Log URL for debugging
+  console.log(`Fetching alerts from: ${targetUrl}`);
   const cacheKey = `alerts_${req.url}`;
   const cachedData = cache.get(cacheKey);
 
@@ -59,7 +61,8 @@ app.get('/proxy/alerts*', async (req, res) => {
     const response = await axios.get(targetUrl, {
       headers: { 'User-Agent': 'Arduino-GIGA-Weather/1.0', 'Accept': 'application/geo+json,application/json' }
     });
-    console.log('Raw NWS response features:', JSON.stringify(response.data.features, null, 2)); // Log raw response
+    console.log(`NWS response status: ${response.status}, headers:`, JSON.stringify(response.headers, null, 2));
+    console.log('Raw NWS response features:', JSON.stringify(response.data.features, null, 2));
     const simplifiedData = {
       features: response.data.features.map(feature => ({
         id: feature.properties.id,
@@ -69,6 +72,7 @@ app.get('/proxy/alerts*', async (req, res) => {
         geocode: feature.properties.geocode
       }))
     };
+    console.log('Simplified response:', JSON.stringify(simplifiedData, null, 2));
     cache.set(cacheKey, simplifiedData);
     res.json(simplifiedData);
   } catch (err) {
