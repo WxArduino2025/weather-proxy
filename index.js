@@ -5,6 +5,17 @@ const fetch = require('node-fetch');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// 🟢 Disable the default "X-Forwarded-Proto" HTTPS redirect behavior
+app.enable('trust proxy');
+app.use((req, res, next) => {
+  if (req.headers['x-forwarded-proto'] === 'https') {
+    // Allow HTTPS (browsers)
+    return next();
+  }
+  // Otherwise, just continue without forcing redirects
+  return next();
+});
+
 // Log incoming requests (for debugging)
 app.use((req, res, next) => {
   console.log(`Incoming: ${req.method} ${req.url}`);
@@ -41,7 +52,6 @@ app.get('/metar', async (req, res) => {
 
 // Alerts endpoint
 app.get('/alerts', async (req, res) => {
-  // Reconstruct the query string to pass through all params
   const queryString = new URLSearchParams(req.query).toString();
   const apiURL = `https://api.weather.gov/alerts?${queryString}`;
 
