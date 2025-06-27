@@ -5,7 +5,7 @@ const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
-const cache = new NodeCache({ stdTTL: 120, checkperiod: 30 }); // Cache for 2 minutes
+const cache = new NodeCache({ stdTTL: 120, checkperiod: 30 }); // Cache responses for 2 min
 
 // Middleware
 app.use(cors());
@@ -14,9 +14,14 @@ app.use(express.json());
 // Root route for health check
 app.get('/', (req, res) => res.send('Weather Proxy Server Running'));
 
-// Handle METAR station request
-app.get('/proxy/stations/:stationCode', async (req, res) => {
-  const stationCode = req.params.stationCode.toUpperCase();
+// METAR endpoint (single station)
+app.get('/metar', async (req, res) => {
+  const { ids } = req.query;
+  if (!ids) {
+    return res.status(400).json({ error: "Missing 'ids' query parameter (station code)" });
+  }
+
+  const stationCode = ids.toUpperCase();
   const cacheKey = `metar_${stationCode}`;
   const cachedData = cache.get(cacheKey);
 
@@ -28,50 +33,40 @@ app.get('/proxy/stations/:stationCode', async (req, res) => {
   const url = `https://aviationweather.gov/api/data/metar?format=json&hoursBeforeNow=3&mostRecentForEachStation=true&ids=${stationCode}`;
 
   try {
-    console.log(`Fetching METAR from: ${url}`);
+    console.log(`Fetching METAR: ${url}`);
     const response = await axios.get(url, {
       headers: { 'User-Agent': 'Arduino-GIGA-Weather/1.0', 'Accept': 'application/json' }
     });
     const data = Array.isArray(response.data) ? response.data : [response.data];
-    console.log(`METAR response for ${stationCode}:`, JSON.stringify(data, null, 2));
     cache.set(cacheKey, data);
     res.json(data);
   } catch (err) {
     console.error(`Error fetching METAR for ${stationCode}:`, err.message);
     res.status(err.response?.status || 500).json({
-      error: `Failed to fetch METAR for ${stationCode}`,
+      error: 'Failed to fetch METAR',
       details: err.response?.data?.message || err.message
     });
   }
 });
 
-// Forward alert requests
-app.get('/proxy/alerts*', async (req, res) => {
-  const targetUrl = `https://api.weather.gov/alerts${req.url.replace('/proxy/alerts', '')}`;
-  console.log(`Request URL: ${req.url}`);
-  console.log(`Query params: ${JSON.stringify(req.query, null, 2)}`);
-  console.log(`Fetching alerts from: ${targetUrl}`);
-  const cacheKey = `alerts_${req.url}`;
-  const cachedData = cache.get(cacheKey);
+// Alerts endpoint
+app.get('/alerts', async (req, res) => {
+  const query = req.originalUrl.replace('/alerts', '');
+  const targetUrl = `https://api.weather.gov/alerts${query}`;
+  const cacheKey = `alerts_${query}`;
 
+  const cachedData = cache.get(cacheKey);
   if (cachedData) {
-    console.log(`Returning cached alerts for ${req.url}`);
+    console.log(`Returning cached alerts for ${query}`);
     return res.json(cachedData);
   }
 
   try {
+    console.log(`Fetching Alerts: ${targetUrl}`);
     const response = await axios.get(targetUrl, {
       headers: { 'User-Agent': 'Arduino-GIGA-Weather/1.0', 'Accept': 'application/geo+json,application/json' }
     });
-    console.log(`NWS response status: ${response.status}, headers:`, JSON.stringify(response.headers, null, 2));
-    console.log('Raw NWS response:', JSON.stringify({
-      features: response.data.features,
-      title: response.data.title,
-      updated: response.data.updated,
-      messageType: response.data.features.map(f => f.properties.messageType || 'unknown'),
-      status: response.data.features.map(f => f.properties.status || 'unknown')
-    }, null, 2));
-    const simplifiedData = {
+    const simplified = {
       features: response.data.features.map(feature => ({
         id: feature.properties.id,
         event: feature.properties.event,
@@ -82,18 +77,17 @@ app.get('/proxy/alerts*', async (req, res) => {
         status: feature.properties.status
       }))
     };
-    console.log('Simplified response:', JSON.stringify(simplifiedData, null, 2));
-    cache.set(cacheKey, simplifiedData);
-    res.json(simplifiedData);
+    cache.set(cacheKey, simplified);
+    res.json(simplified);
   } catch (err) {
-    console.error(`Error fetching alerts for ${req.url}:`, err.message);
+    console.error(`Error fetching alerts:`, err.message);
     res.status(err.response?.status || 500).json({
-      error: `Failed to fetch alerts`,
+      error: 'Failed to fetch alerts',
       details: err.response?.data?.message || err.message
     });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ Proxy server running at http${process.env.NODE_ENV === 'production' ? 's' : ''}://localhost:${PORT}`);
+  console.log(`✅ Weather proxy server running on port ${PORT}`);
 });
