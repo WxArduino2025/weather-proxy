@@ -1,56 +1,64 @@
-const express = require('express');
-const fetch = require('node-fetch');
-const app = express();
-const PORT = process.env.PORT || 3000;
+/**
+ * index.js
+ * Node.js proxy server for weather.gov
+ */
 
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  next();
-});
+const express = require("express");
+const fetch = require("node-fetch");
+const app = express();
 
 // Root route
-app.get('/', (req, res) => {
-  res.send('Weather Proxy Server is running.');
+app.get("/", (req, res) => {
+  res.send("Weather proxy server is running.");
 });
 
 // METAR endpoint
-app.get('/metar', async (req, res) => {
-  const station = req.query.ids;
-  if (!station) {
-    return res.status(400).json({ error: 'Missing ?ids=STATION parameter' });
+app.get("/metar", async (req, res) => {
+  const ids = req.query.ids;
+  if (!ids) {
+    return res.status(400).send({ error: "Missing 'ids' parameter" });
   }
+  const url = `https://api.weather.gov/stations/${ids}/observations/latest`;
 
   try {
-    const nwsResponse = await fetch(`https://api.weather.gov/stations/${station}/observations/latest`);
-    if (!nwsResponse.ok) {
-      return res.status(500).json({ error: 'Failed to fetch METAR from NWS' });
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "ArduinoProxy/1.0"
+      }
+    });
+    if (!response.ok) {
+      return res.status(response.status).send({ error: "Upstream error" });
     }
-    const json = await nwsResponse.json();
-    res.json(json);
+    const data = await response.json();
+    res.json(data);
   } catch (error) {
-    console.error('Error fetching METAR:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).send({ error: error.message });
   }
 });
 
 // Alerts endpoint
-app.get('/alerts', async (req, res) => {
-  const queryString = req.originalUrl.split('?')[1];
+app.get("/alerts", async (req, res) => {
+  const queryString = new URLSearchParams(req.query).toString();
   const url = `https://api.weather.gov/alerts?${queryString}`;
 
   try {
-    const nwsResponse = await fetch(url);
-    if (!nwsResponse.ok) {
-      return res.status(500).json({ error: 'Failed to fetch alerts from NWS' });
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "ArduinoProxy/1.0"
+      }
+    });
+    if (!response.ok) {
+      return res.status(response.status).send({ error: "Upstream error" });
     }
-    const json = await nwsResponse.json();
-    res.json(json);
+    const data = await response.json();
+    res.json(data);
   } catch (error) {
-    console.error('Error fetching alerts:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).send({ error: error.message });
   }
 });
 
+// Listen on the default port Render provides
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Proxy server listening on port ${PORT}`);
 });
