@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 3000;
 // 🟢 METAR proxy endpoint
 app.get("/metar", async (req, res) => {
   const query = req.url.replace("/metar", "");
-  const url = `https://aviationweather.gov/api/data/metar${query}`;
+  const url = `https://aviationweather.gov/api/data/metar${query}&format=json`;
   try {
     const response = await fetch(url);
     const data = await response.text();
@@ -28,7 +28,7 @@ app.get("/alerts", async (req, res) => {
     const response = await fetch(url);
     const data = await response.text();
     res.set("Content-Type", "application/json");
-    res.set("Transfer-Encoding", "identity"); // Disable chunked encoding
+    res.set("Transfer-Encoding", "identity");
     res.send(data);
   } catch (error) {
     console.error("Error fetching alerts:", error);
@@ -36,7 +36,6 @@ app.get("/alerts", async (req, res) => {
   }
 });
 
-// 🟢 Start the server
 app.listen(PORT, () => {
   console.log(`Proxy listening on port ${PORT}`);
 });
