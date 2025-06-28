@@ -4,15 +4,22 @@ const fetch = require("node-fetch");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🟢 METAR proxy endpoint
 app.get("/metar", async (req, res) => {
-  const query = req.url.replace("/metar", "");
-  const url = `https://aviationweather.gov/api/data/metar${query}&format=json`;
+  // Build the upstream URL safely
+  let upstreamUrl = "https://aviationweather.gov/api/data/metar";
+
+  const originalQuery = req.url.split("?")[1];
+  if (originalQuery) {
+    upstreamUrl += "?" + originalQuery + "&format=json";
+  } else {
+    upstreamUrl += "?format=json";
+  }
+
   try {
-    const response = await fetch(url);
+    const response = await fetch(upstreamUrl);
     const data = await response.text();
     res.set("Content-Type", "application/json");
-    res.set("Transfer-Encoding", "identity"); // Disable chunked encoding
+    res.set("Transfer-Encoding", "identity");
     res.send(data);
   } catch (error) {
     console.error("Error fetching METAR:", error);
@@ -20,12 +27,15 @@ app.get("/metar", async (req, res) => {
   }
 });
 
-// 🟢 Alerts proxy endpoint
 app.get("/alerts", async (req, res) => {
-  const query = req.url.replace("/alerts", "");
-  const url = `https://api.weather.gov/alerts${query}`;
+  let upstreamUrl = "https://api.weather.gov/alerts";
+  const originalQuery = req.url.split("?")[1];
+  if (originalQuery) {
+    upstreamUrl += "?" + originalQuery;
+  }
+
   try {
-    const response = await fetch(url);
+    const response = await fetch(upstreamUrl);
     const data = await response.text();
     res.set("Content-Type", "application/json");
     res.set("Transfer-Encoding", "identity");
