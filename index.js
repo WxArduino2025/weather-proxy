@@ -1,74 +1,56 @@
-// index.js
-
 const express = require('express');
 const fetch = require('node-fetch');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🟢 Disable the default "X-Forwarded-Proto" HTTPS redirect behavior
-app.enable('trust proxy');
+// CORS headers to allow any origin
 app.use((req, res, next) => {
-  if (req.headers['x-forwarded-proto'] === 'https') {
-    // Allow HTTPS (browsers)
-    return next();
-  }
-  // Otherwise, just continue without forcing redirects
-  return next();
-});
-
-// Log incoming requests (for debugging)
-app.use((req, res, next) => {
-  console.log(`Incoming: ${req.method} ${req.url}`);
+  res.header('Access-Control-Allow-Origin', '*');
   next();
 });
 
-// Simple root check
+// Root route
 app.get('/', (req, res) => {
-  res.send('✅ Weather Proxy Server Running');
+  res.send('Weather Proxy Server is running.');
 });
 
-// METAR endpoint
+// METAR endpoint: /metar?ids=KSTL
 app.get('/metar', async (req, res) => {
-  const { ids } = req.query;
-
-  if (!ids) {
-    return res.status(400).json({ error: 'Missing ids parameter' });
+  const station = req.query.ids;
+  if (!station) {
+    return res.status(400).json({ error: 'Missing ?ids=STATION parameter' });
   }
 
-  const apiURL = `https://aviationweather.gov/api/data/metar?format=json&hoursBeforeNow=3&mostRecentForEachStation=true&ids=${ids}`;
-
   try {
-    const response = await fetch(apiURL);
-    if (!response.ok) {
-      return res.status(response.status).json({ error: `METAR API error: ${response.statusText}` });
+    const nwsResponse = await fetch(`https://api.weather.gov/stations/${station}/observations/latest`);
+    if (!nwsResponse.ok) {
+      return res.status(500).json({ error: 'Failed to fetch METAR from NWS' });
     }
-    const data = await response.json();
-    res.json(data);
+    const json = await nwsResponse.json();
+    res.json(json);
   } catch (error) {
     console.error('Error fetching METAR:', error);
-    res.status(500).json({ error: 'Server error fetching METAR' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Alerts endpoint
+// Warning endpoint example: /alerts?status=actual&message_type=alert&area=MO&event=Severe%20Thunderstorm%20Warning
 app.get('/alerts', async (req, res) => {
-  const queryString = new URLSearchParams(req.query).toString();
-  const apiURL = `https://api.weather.gov/alerts?${queryString}`;
-
+  const queryString = req.originalUrl.split('?')[1];
+  const url = `https://api.weather.gov/alerts?${queryString}`;
   try {
-    const response = await fetch(apiURL);
-    if (!response.ok) {
-      return res.status(response.status).json({ error: `Alerts API error: ${response.statusText}` });
+    const nwsResponse = await fetch(url);
+    if (!nwsResponse.ok) {
+      return res.status(500).json({ error: 'Failed to fetch alerts from NWS' });
     }
-    const data = await response.json();
-    res.json(data);
+    const json = await nwsResponse.json();
+    res.json(json);
   } catch (error) {
-    console.error('Error fetching Alerts:', error);
-    res.status(500).json({ error: 'Server error fetching Alerts' });
+    console.error('Error fetching alerts:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Start server
 app.listen(PORT, () => {
-  console.log(`Weather Proxy Server listening on port ${PORT}`);
+  console.log(`Proxy server listening on port ${PORT}`);
 });
